@@ -16,7 +16,7 @@ const HF_IMAGE_MAP = {
 };
 
 // ── HuggingFace ──────────────────────────────────────────────────────────────
-async function fetchFromHuggingFace(prompt, model) {
+async function fetchFromHuggingFace(prompt, model, apiKey) {
   const hfModel = HF_IMAGE_MAP[model] || HF_IMAGE_MAP['flux'];
   const controller = new AbortController();
   // Tighten timeout to 5s
@@ -26,7 +26,7 @@ async function fetchFromHuggingFace(prompt, model) {
     const res = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
       method: 'POST',
       headers: {
-        'Authorization':    `Bearer ${process.env.HF_API_KEY}`,
+        'Authorization':    `Bearer ${apiKey}`,
         'Content-Type':     'application/json',
         'x-wait-for-model': 'true',
       },
@@ -87,19 +87,23 @@ async function fetchFromPollinations(prompt, model) {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin',  '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
 
   const prompt = req.query.prompt || 'a beautiful landscape';
   const model  = req.query.model  || 'flux';
+  
+  // Detect API Key
+  const HF_KEY = process.env.HF_API_KEY || process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY;
 
   try {
     let result;
     let provider = 'pollinations';
 
-    if (process.env.HF_API_KEY) {
+    if (HF_KEY) {
       try {
-        result   = await fetchFromHuggingFace(prompt, model);
+        result   = await fetchFromHuggingFace(prompt, model, HF_KEY);
         provider = 'huggingface';
       } catch (e) {
         console.log(`[HF] Failed — falling back to Pollinations`);
