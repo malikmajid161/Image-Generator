@@ -8,9 +8,14 @@
  * Falls back to the original prompt unchanged if HF fails or times out (9 s).
  */
 
-const GEMINI_KEY = process.env.GEMINI_API_KEY || 'AIzaSyAK3Og0wUKVg6GqHO1ld5CClGReuwyhUIA';
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
 
 async function enhanceViaGemini(prompt) {
+  if (!GEMINI_KEY) {
+    console.error('[Enhance] Missing GEMINI_API_KEY');
+    return '';
+  }
+
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
     const res = await fetch(url, {
@@ -19,15 +24,24 @@ async function enhanceViaGemini(prompt) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `You are a Stable Diffusion prompt engineer. Rewrite the following user prompt into a highly detailed, photorealistic image generation prompt. Add artistic styles, lighting details, and technical specs (8k, masterpiece). Keep the response under 60 words. Prompt: "${prompt}"`
+            text: `You are a Stable Diffusion prompt engineer. Rewrite the following user prompt into a highly detailed, photorealistic image generation prompt. Add artistic styles, lighting details, and technical specs (8k, masterpiece). Keep the response under 60 words. Response must be ONLY the prompt. Prompt: "${prompt}"`
           }]
         }]
       })
     });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      console.error('[Enhance] Gemini API Error:', err);
+      return '';
+    }
+
     const json = await res.json();
-    return json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    const result = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    console.log('[Enhance] Gemini Success:', result.substring(0, 50) + '...');
+    return result;
   } catch (e) {
-    console.error('Gemini Error:', e);
+    console.error('[Enhance] Gemini Exception:', e.message);
     return '';
   }
 }

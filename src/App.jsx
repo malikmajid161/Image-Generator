@@ -76,16 +76,16 @@ function MediaCard({ item }) {
             <div className="loader">
               <div className="spinner"/>
               <p className="loader-text">
-                {tries > 0 ? 'Switching model…' : 'Generating…'}
+                {tries > 0 ? 'Waking up the models…' : 'Breathing life into your prompt…'}
               </p>
             </div>
           )}
 
           {phase === 'error' && (
             <div className="error-box">
-              <p>Generation failed</p>
-              <span>Model may be busy</span>
-              <button className="card-btn" onClick={retry} style={{marginTop:'4px'}}>↺ Retry</button>
+              <p>Creative Block</p>
+              <span>The AI is currently busy crafting other masterpieces.</span>
+              <button className="card-btn" onClick={retry} style={{marginTop:'4px'}}>↺ Try Again</button>
             </div>
           )}
 
