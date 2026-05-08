@@ -110,12 +110,8 @@ export default async function handler(req, res) {
         result   = await fetchFromHuggingFace(prompt, model);
         provider = 'huggingface';
       } catch (e) {
-        if (e.status === 429) {
-          res.status(429).json({ error: 'Too many requests — try again shortly' });
-          return;
-        }
-        // HF failed or timed out → immediately fall back
-        console.log(`[HF] ${e.message} — falling back to Pollinations`);
+        // HF failed or timed out (including 429) → immediately fall back
+        console.log(`[HF] ${e.message} (Status: ${e.status}) — falling back to Pollinations`);
         result = await fetchFromPollinations(prompt, model);
       }
     } else {
