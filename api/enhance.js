@@ -8,6 +8,30 @@
  * Falls back to the original prompt unchanged if HF fails or times out (9 s).
  */
 
+const GEMINI_KEY = process.env.GEMINI_API_KEY || 'AIzaSyAK3Og0wUKVg6GqHO1ld5CClGReuwyhUIA';
+
+async function enhanceViaGemini(prompt) {
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `You are a Stable Diffusion prompt engineer. Rewrite the following user prompt into a highly detailed, photorealistic image generation prompt. Add artistic styles, lighting details, and technical specs (8k, masterpiece). Keep the response under 60 words. Prompt: "${prompt}"`
+          }]
+        }]
+      })
+    });
+    const json = await res.json();
+    return json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+  } catch (e) {
+    console.error('Gemini Error:', e);
+    return '';
+  }
+}
+
 // ── HuggingFace text enhancement ────────────────────────────────────────────
 async function enhanceViaHF(prompt) {
   const controller = new AbortController();
@@ -64,16 +88,17 @@ export default async function handler(req, res) {
   const fallback = `${prompt}, highly detailed, photorealistic, cinematic lighting, 8k, masterpiece, sharp focus`;
 
   try {
-    if (!process.env.HF_API_KEY) {
-      res.status(200).json({ enhanced: fallback });
-      return;
+    // 1. Try Gemini first
+    let enhanced = await enhanceViaGemini(prompt);
+    
+    // 2. Fallback to HF if Gemini fails
+    if (!enhanced && (process.env.HF_API_KEY || process.env.HF_TOKEN)) {
+      enhanced = await enhanceViaHF(prompt);
     }
 
-    const enhanced = await enhanceViaHF(prompt);
-    res.status(200).json({ enhanced });
+    res.status(200).json({ enhanced: enhanced || fallback });
   } catch (e) {
-    // Timeout or any HF error → return original prompt unchanged
-    console.log(`[enhance] ${e.message} — returning original prompt`);
+    console.log(`[enhance] ${e.message} — returning fallback`);
     res.status(200).json({ enhanced: fallback });
   }
 }
