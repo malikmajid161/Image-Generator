@@ -8,40 +8,45 @@
  * Falls back to the original prompt unchanged if HF fails or times out (9 s).
  */
 
-const GEMINI_KEY = process.env.GEMINI_API_KEY;
+const GROQ_KEY = process.env.GROQ_API_KEY;
 
-async function enhanceViaGemini(prompt) {
-  if (!GEMINI_KEY) {
-    console.error('[Enhance] Missing GEMINI_API_KEY');
+async function enhanceViaGroq(prompt) {
+  if (!GROQ_KEY) {
+    console.error('[Enhance] Missing GROQ_API_KEY');
     return '';
   }
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
-    const res = await fetch(url, {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${GROQ_KEY}`,
+        'Content-Type':  'application/json',
+      },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `You are a Stable Diffusion prompt engineer. Rewrite the following user prompt into a highly detailed, photorealistic image generation prompt. Add artistic styles, lighting details, and technical specs (8k, masterpiece). Keep the response under 60 words. Response must be ONLY the prompt. Prompt: "${prompt}"`
-          }]
-        }]
+        model: 'llama3-8b-8192',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Stable Diffusion prompt engineer. Rewrite user prompts into highly detailed image generation prompts. Add artistic styles, lighting, and camera settings. Respond ONLY with the rewritten prompt. Max 60 words.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 100
       })
     });
     
     if (!res.ok) {
       const err = await res.json();
-      console.error('[Enhance] Gemini API Error:', err);
+      console.error('[Enhance] Groq API Error:', err);
       return '';
     }
 
     const json = await res.json();
-    const result = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-    console.log('[Enhance] Gemini Success:', result.substring(0, 50) + '...');
-    return result;
+    return json.choices?.[0]?.message?.content?.trim() || '';
   } catch (e) {
-    console.error('[Enhance] Gemini Exception:', e.message);
+    console.error('[Enhance] Groq Exception:', e.message);
     return '';
   }
 }
@@ -102,16 +107,17 @@ export default async function handler(req, res) {
   const fallback = `${prompt}, highly detailed, photorealistic, cinematic lighting, 8k, masterpiece, sharp focus`;
 
   try {
-    // 1. Try Gemini first
-    let enhanced = await enhanceViaGemini(prompt);
+    // 1. Try Groq first
+    let enhanced = await enhanceViaGroq(prompt);
     
-    // 2. Fallback to HF if Gemini fails
+    // 2. Fallback to HF
     if (!enhanced && (process.env.HF_API_KEY || process.env.HF_TOKEN)) {
       enhanced = await enhanceViaHF(prompt);
     }
 
     res.status(200).json({ enhanced: enhanced || fallback });
   } catch (e) {
+    // Timeout or any error → return fallback
     console.log(`[enhance] ${e.message} — returning fallback`);
     res.status(200).json({ enhanced: fallback });
   }
