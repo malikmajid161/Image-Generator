@@ -102,7 +102,17 @@ function MediaCard({ item }) {
 
       <div className="card-footer">
         <p className="card-prompt" title={item.prompt}>{item.prompt}</p>
-        <button className="card-btn" onClick={() => window.open(src, '_blank')}>↗ View</button>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <button className="card-btn" onClick={() => {
+            const link = document.createElement('a');
+            link.href = src;
+            link.download = `fluxion-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }}>💾</button>
+          <button className="card-btn" onClick={() => window.open(src, '_blank')}>↗</button>
+        </div>
       </div>
     </div>
   );
