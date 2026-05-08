@@ -18,8 +18,8 @@ const HF_IMAGE_MAP = {
 async function fetchFromHuggingFace(prompt, model, apiKey) {
   const hfModel = HF_IMAGE_MAP[model] || HF_IMAGE_MAP['flux'];
   const controller = new AbortController();
-  // Tighten timeout to 5s
-  const timer = setTimeout(() => controller.abort(), 6000);
+  // 4s for HF to leave room for fallback
+  const timer = setTimeout(() => controller.abort(), 4000);
 
   try {
     const res = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
@@ -60,31 +60,27 @@ async function fetchFromHuggingFace(prompt, model, apiKey) {
 }
 
 async function fetchFromPollinations(prompt, model) {
+  // Only try 2 models to save time
   const modelOrder = [model, 'flux'].filter((m, i, a) => a.indexOf(m) === i);
 
   for (const m of modelOrder) {
+    console.log(`[Pol] Attempting: ${m}`);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
+    // 2.5s per pollination attempt
+    const timer = setTimeout(() => controller.abort(), 2500);
     const seed = Math.floor(Math.random() * 999999);
     const url  = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`
                + `?width=1024&height=1024&seed=${seed}&model=${m}&nologo=true`;
 
     try {
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Accept':     'image/jpeg,image/*',
-        },
-        signal: controller.signal,
-      });
-
+      const res = await fetch(url, { signal: controller.signal });
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.startsWith('image/')) {
         const buffer = await res.arrayBuffer();
         return { buffer, contentType };
       }
     } catch (e) {
-      console.error(`[Pol] ${m}: ${e.message}`);
+      console.error(`[Pol] ${m} failed: ${e.message}`);
     } finally {
       clearTimeout(timer);
     }
